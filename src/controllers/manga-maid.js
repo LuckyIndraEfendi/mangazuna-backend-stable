@@ -242,58 +242,54 @@ const mangaByGenres = async (req, res) => {
 
 const mangaByAdvSearch = async (req, res) => {
   try {
-    const url = await cloudscraper.get(
-      `${baseURL}/advanced-search/page/${req.query.page || 1}/`,
-      {
-        params: {
-          title: req.query.title || "",
-          author: req.query.author || "",
-          yearx: req.query.genre || "",
-          type: req.query.type || "",
-          status: req.query.status || "",
-          order: req.query.order || "",
-        },
-      },
-      {
-        headers: header,
-      }
-    );
-    const $ = cheerio.load(url);
+    const page = req.query.page || 1;
+    const queryParams = new URLSearchParams({
+      title: req.query.title || "",
+      author: req.query.author || "",
+      yearx: req.query.genre || "",
+      type: req.query.type || "",
+      status: req.query.status || "",
+      order: req.query.order || "",
+    });
+
+    const fullURL = `${baseURL}/advanced-search/${page}/?${queryParams.toString()}`;
+
+    const html = await cloudscraper.get(fullURL, {
+      headers: header,
+    });
+
+    const $ = cheerio.load(html);
     const manga = [];
+
     $("body > main > div > div > div.flexbox2 > div").each((i, el) => {
       manga.push({
-        title: $(el).find("div > a > div > div > span.title").text(),
+        title: $(el).find("div > a > div > div > span.title").text().trim(),
         banner: $(el)
           .find("div > a > div > img")
           .attr("src")
           ?.replace(/(\?|&)resize=\d+,\d+/, ""),
-        rating: $(el).find("div > div > div.info > div.score").text()?.trim(),
-        manga_slug: $(el)
-          .find("div > a")
-          .attr("href")
-          ?.replace(`${baseURL}`, "/"),
+        rating: $(el).find("div > div > div.info > div.score").text().trim(),
+        manga_slug: $(el).find("div > a").attr("href")?.replace(baseURL, "/"),
       });
     });
-    const has_next = $(
-      "body > main > div > div > div.pagination > a.next.page-numbers"
-    )
-      .attr("href")
-      ?.replace(baseURL, "/");
-    const has_prev = $(
-      "body > main > div > div > div.pagination > a.prev.page-numbers"
-    )
-      .attr("href")
-      ?.replace(baseURL, "/");
+
+    const has_next_href = $("a.next.page-numbers").attr("href");
+    const has_prev_href = $("a.prev.page-numbers").attr("href");
+
     res.status(200).json({
       status: "success",
       data: manga,
       has_next: {
-        has_next_link: has_next ? `/manga/search${has_next}` : null,
-        is_next_link: !!has_next,
+        has_next_link: has_next_href
+          ? `/manga/search${has_next_href.replace(baseURL, "")}`
+          : null,
+        is_next_link: !!has_next_href,
       },
       has_prev: {
-        has_prev_link: has_prev ? `/manga/search${has_prev}` : null,
-        is_prev_link: !!has_prev,
+        has_prev_link: has_prev_href
+          ? `/manga/search${has_prev_href.replace(baseURL, "")}`
+          : null,
+        is_prev_link: !!has_prev_href,
       },
       total_manga: manga.length,
     });
